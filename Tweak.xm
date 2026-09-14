@@ -1,199 +1,164 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-static NSString *SBLDebugPath(void) {
-    return @"/var/mobile/Library/Preferences/StatusBarLayoutDebug2.txt";
-}
+static BOOL IsTargetView(UIView *view)
+{
+    NSString *name = NSStringFromClass([view class]);
 
-static void SBLAppend(NSString *text) {
-    @autoreleasepool {
-        NSString *old =
-            [NSString stringWithContentsOfFile:SBLDebugPath()
-                                       encoding:NSUTF8StringEncoding
-                                          error:nil];
+    NSArray *targets = @[
+        @"UIStatusBar_Modern",
+        @"_UIStatusBar",
+        @"_UIStatusBarForegroundView",
+        @"_UIStatusBarStringView",
+        @"_UIStatusBarCellularSmallSignalView",
+        @"_UIStatusBarCellularFlatSignalView",
+        @"_UIStatusBarDualCellularSignalView",
+        @"_UIStatusBarWifiSignalView",
+        @"_UIBatteryView",
+        @"AxsDuoCombinedView"
+    ];
 
-        if (!old) {
-            old = @"";
+    for (NSString *target in targets) {
+        if ([name containsString:target]) {
+            return YES;
         }
-
-        NSString *out = [old stringByAppendingFormat:@"%@\n", text];
-
-        [out writeToFile:SBLDebugPath()
-              atomically:YES
-                encoding:NSUTF8StringEncoding
-                   error:nil];
     }
+
+    return NO;
 }
 
-static void SBLDumpView(UIView *view,
-                        NSUInteger level,
-                        NSMutableString *out) {
-
-    if (!view || level > 20) {
+static void DumpView(UIView *view, NSInteger depth)
+{
+    if (!view)
         return;
-    }
 
-    CGRect f = view.frame;
+    if (IsTargetView(view)) {
 
-    NSString *cls = NSStringFromClass([view class]);
+        NSString *className = NSStringFromClass([view class]);
+        NSString *superName = view.superview ?
+            NSStringFromClass([view.superview class]) : @"<nil>";
+        NSString *windowName = view.window ?
+            NSStringFromClass([view.window class]) : @"<nil>";
 
-    BOOL interesting =
-        [cls containsString:@"StatusBar"] ||
-        [cls containsString:@"Battery"] ||
-        [cls containsString:@"Wifi"] ||
-        [cls containsString:@"WiFi"] ||
-        [cls containsString:@"Cellular"] ||
-        [cls containsString:@"Signal"] ||
-        [cls containsString:@"String"] ||
-        [cls containsString:@"Time"] ||
-        [cls containsString:@"Clock"] ||
-        [cls containsString:@"Duo"];
-
-    if (interesting) {
-
-        NSString *superCls =
-            view.superview
-            ? NSStringFromClass([view.superview class])
-            : @"<nil>";
-
-        NSString *windowCls =
-            view.window
-            ? NSStringFromClass([view.window class])
-            : @"<nil>";
-
-        [out appendFormat:
-            @"%@%@\n"
-             "%@frame=(%.1f, %.1f, %.1f, %.1f)\n"
-             "%@hidden=%d alpha=%.2f\n"
-             "%@superview=%@\n"
-             "%@window=%@\n\n",
-            [@"" stringByPaddingToLength:level * 2
-                              withString:@" "
-                         startingAtIndex:0],
-            cls,
-
-            [@"" stringByPaddingToLength:level * 2 + 2
-                              withString:@" "
-                         startingAtIndex:0],
-            f.origin.x,
-            f.origin.y,
-            f.size.width,
-            f.size.height,
-
-            [@"" stringByPaddingToLength:level * 2 + 2
-                              withString:@" "
-                         startingAtIndex:0],
-            view.hidden,
-            view.alpha,
-
-            [@"" stringByPaddingToLength:level * 2 + 2
-                              withString:@" "
-                         startingAtIndex:0],
-            superCls,
-
-            [@"" stringByPaddingToLength:level * 2 + 2
-                              withString:@" "
-                         startingAtIndex:0],
-            windowCls
-        ];
+        NSLog(@"\n"
+              @"========== STATUS TARGET ==========\n"
+              @"class      = %@\n"
+              @"frame      = %@\n"
+              @"bounds     = %@\n"
+              @"center     = %@\n"
+              @"hidden     = %d\n"
+              @"alpha      = %.2f\n"
+              @"superview  = %@\n"
+              @"window     = %@\n"
+              @"====================================",
+              className,
+              NSStringFromCGRect(view.frame),
+              NSStringFromCGRect(view.bounds),
+              NSStringFromCGPoint(view.center),
+              view.hidden,
+              view.alpha,
+              superName,
+              windowName);
     }
 
     for (UIView *subview in view.subviews) {
-        SBLDumpView(subview, level + 1, out);
+        DumpView(subview, depth + 1);
     }
 }
 
-static void SBLDumpStatusBars(void) {
+static void DumpAllWindows(void)
+{
+    NSLog(@"\n\n"
+          @"========================================\n"
+          @"===== STATUS BAR DEBUG 3 START ========\n"
+          @"========================================");
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    UIApplication *app = [UIApplication sharedApplication];
 
-        @autoreleasepool {
+    if (!app) {
+        NSLog(@"UIApplication = nil");
+        return;
+    }
 
-            NSMutableString *report =
-                [NSMutableString string];
+    NSLog(@"UIApplication windows count = %lu",
+          (unsigned long)app.windows.count);
 
-            [report appendFormat:
-                @"\n\n===== STATUS BAR DEBUG 2 %@ =====\n",
-                [NSDate date]];
+    for (UIWindow *window in app.windows) {
 
-            NSSet *scenes =
-                [UIApplication sharedApplication].connectedScenes;
+        NSLog(@"\n"
+              @"----- APPLICATION WINDOW -----\n"
+              @"class  = %@\n"
+              @"frame  = %@\n"
+              @"hidden = %d\n"
+              @"alpha  = %.2f",
+              NSStringFromClass([window class]),
+              NSStringFromCGRect(window.frame),
+              window.hidden,
+              window.alpha);
 
-            for (UIScene *scene in scenes) {
+        DumpView(window, 0);
+    }
 
-                if (![scene isKindOfClass:[UIWindowScene class]]) {
-                    continue;
-                }
+    if (@available(iOS 13.0, *)) {
 
-                UIWindowScene *windowScene =
-                    (UIWindowScene *)scene;
+        for (UIScene *scene in app.connectedScenes) {
 
-                for (UIWindow *window in windowScene.windows) {
+            NSLog(@"\n"
+                  @"----- SCENE -----\n"
+                  @"class = %@\n"
+                  @"state = %ld",
+                  NSStringFromClass([scene class]),
+                  (long)scene.activationState);
 
-                    NSString *windowClass =
-                        NSStringFromClass([window class]);
+            if (![scene isKindOfClass:[UIWindowScene class]])
+                continue;
 
-                    NSString *windowDescription =
-                        [window description];
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
 
-                    NSString *all =
-                        [[windowClass stringByAppendingString:@" "]
-                         stringByAppendingString:windowDescription];
+            NSLog(@"Scene windows count = %lu",
+                  (unsigned long)windowScene.windows.count);
 
-                    NSString *lower =
-                        all.lowercaseString;
+            for (UIWindow *window in windowScene.windows) {
 
-                    if ([lower containsString:@"statusbar"]) {
+                NSLog(@"\n"
+                      @"----- SCENE WINDOW -----\n"
+                      @"class  = %@\n"
+                      @"frame  = %@\n"
+                      @"hidden = %d\n"
+                      @"alpha  = %.2f",
+                      NSStringFromClass([window class]),
+                      NSStringFromCGRect(window.frame),
+                      window.hidden,
+                      window.alpha);
 
-                        [report appendFormat:
-                            @"\n--- STATUS WINDOW ---\n"
-                             "class=%@\n"
-                             "frame=(%.1f, %.1f, %.1f, %.1f)\n"
-                             "hidden=%d alpha=%.2f\n\n",
-                            windowClass,
-                            window.frame.origin.x,
-                            window.frame.origin.y,
-                            window.frame.size.width,
-                            window.frame.size.height,
-                            window.hidden,
-                            window.alpha
-                        ];
-
-                        SBLDumpView(window, 0, report);
-                    }
-                }
+                DumpView(window, 0);
             }
-
-            SBLAppend(report);
         }
-    });
+    }
+
+    NSLog(@"\n"
+          @"========================================\n"
+          @"===== STATUS BAR DEBUG 3 END ==========\n"
+          @"========================================\n\n");
 }
 
-%ctor {
+%ctor
+{
+    NSLog(@"[StatusBarLayoutDebug] Debug 3 loaded");
 
     dispatch_after(
-        dispatch_time(DISPATCH_TIME_NOW,
-                      (int64_t)(3 * NSEC_PER_SEC)),
+        dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
         dispatch_get_main_queue(),
         ^{
+            DumpAllWindows();
 
-            SBLAppend(
-                @"===== StatusBarLayoutDebug2 loaded ====="
+            dispatch_after(
+                dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
+                dispatch_get_main_queue(),
+                ^{
+                    DumpAllWindows();
+                }
             );
-
-            SBLDumpStatusBars();
-
-            for (int i = 1; i <= 4; i++) {
-
-                dispatch_after(
-                    dispatch_time(DISPATCH_TIME_NOW,
-                                  (int64_t)(i * 3 * NSEC_PER_SEC)),
-                    dispatch_get_main_queue(),
-                    ^{
-                        SBLDumpStatusBars();
-                    }
-                );
-            }
         }
     );
 }
