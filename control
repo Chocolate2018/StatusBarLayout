@@ -1,0 +1,9 @@
+Package: com.statusbarlayout.debug
+Name: StatusBarLayout Debug
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Runtime status bar view hierarchy diagnostic for iOS 16.
+Maintainer: StatusBarLayout
+Author: StatusBarLayout
+Section: Tweaks
+Depends: firmware (>= 15.0)
