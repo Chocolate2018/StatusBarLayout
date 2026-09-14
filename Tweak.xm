@@ -1,5 +1,4 @@
 #import <UIKit/UIKit.h>
-#import <objc/runtime.h>
 
 static BOOL IsTargetView(UIView *view)
 {
@@ -27,7 +26,7 @@ static BOOL IsTargetView(UIView *view)
     return NO;
 }
 
-static void DumpView(UIView *view, NSInteger depth)
+static void DumpView(UIView *view)
 {
     if (!view)
         return;
@@ -35,10 +34,14 @@ static void DumpView(UIView *view, NSInteger depth)
     if (IsTargetView(view)) {
 
         NSString *className = NSStringFromClass([view class]);
+
         NSString *superName = view.superview ?
-            NSStringFromClass([view.superview class]) : @"<nil>";
+            NSStringFromClass([view.superview class]) :
+            @"<nil>";
+
         NSString *windowName = view.window ?
-            NSStringFromClass([view.window class]) : @"<nil>";
+            NSStringFromClass([view.window class]) :
+            @"<nil>";
 
         NSLog(@"\n"
               @"========== STATUS TARGET ==========\n"
@@ -62,7 +65,7 @@ static void DumpView(UIView *view, NSInteger depth)
     }
 
     for (UIView *subview in view.subviews) {
-        DumpView(subview, depth + 1);
+        DumpView(subview);
     }
 }
 
@@ -80,60 +83,68 @@ static void DumpAllWindows(void)
         return;
     }
 
-    NSLog(@"UIApplication windows count = %lu",
-          (unsigned long)app.windows.count);
-
-    for (UIWindow *window in app.windows) {
-
-        NSLog(@"\n"
-              @"----- APPLICATION WINDOW -----\n"
-              @"class  = %@\n"
-              @"frame  = %@\n"
-              @"hidden = %d\n"
-              @"alpha  = %.2f",
-              NSStringFromClass([window class]),
-              NSStringFromCGRect(window.frame),
-              window.hidden,
-              window.alpha);
-
-        DumpView(window, 0);
-    }
+    /*
+     * iOS 13+:
+     * 不再使用 UIApplication.windows，
+     * 避免 iOS 15+ SDK deprecated 错误。
+     */
 
     if (@available(iOS 13.0, *)) {
 
-        for (UIScene *scene in app.connectedScenes) {
+        NSSet<UIScene *> *scenes = app.connectedScenes;
+
+        NSLog(@"Connected scenes count = %lu",
+              (unsigned long)scenes.count);
+
+        for (UIScene *scene in scenes) {
 
             NSLog(@"\n"
                   @"----- SCENE -----\n"
-                  @"class = %@\n"
-                  @"state = %ld",
+                  @"class      = %@\n"
+                  @"state      = %ld",
                   NSStringFromClass([scene class]),
                   (long)scene.activationState);
 
-            if (![scene isKindOfClass:[UIWindowScene class]])
+            if (![scene isKindOfClass:[UIWindowScene class]]) {
                 continue;
+            }
 
             UIWindowScene *windowScene = (UIWindowScene *)scene;
 
-            NSLog(@"Scene windows count = %lu",
-                  (unsigned long)windowScene.windows.count);
+            NSArray<UIWindow *> *windows = windowScene.windows;
 
-            for (UIWindow *window in windowScene.windows) {
+            NSLog(@"Scene windows count = %lu",
+                  (unsigned long)windows.count);
+
+            for (UIWindow *window in windows) {
 
                 NSLog(@"\n"
                       @"----- SCENE WINDOW -----\n"
-                      @"class  = %@\n"
-                      @"frame  = %@\n"
-                      @"hidden = %d\n"
-                      @"alpha  = %.2f",
+                      @"class      = %@\n"
+                      @"frame      = %@\n"
+                      @"bounds     = %@\n"
+                      @"hidden     = %d\n"
+                      @"alpha      = %.2f\n"
+                      @"rootView   = %@",
                       NSStringFromClass([window class]),
                       NSStringFromCGRect(window.frame),
+                      NSStringFromCGRect(window.bounds),
                       window.hidden,
-                      window.alpha);
+                      window.alpha,
+                      window.rootViewController ?
+                      NSStringFromClass(
+                          [window.rootViewController class]
+                      ) :
+                      @"<nil>");
 
-                DumpView(window, 0);
+                DumpView(window);
             }
         }
+
+    } else {
+
+        NSLog(@"iOS version < 13 detected");
+
     }
 
     NSLog(@"\n"
@@ -147,13 +158,19 @@ static void DumpAllWindows(void)
     NSLog(@"[StatusBarLayoutDebug] Debug 3 loaded");
 
     dispatch_after(
-        dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
+        dispatch_time(
+            DISPATCH_TIME_NOW,
+            5 * NSEC_PER_SEC
+        ),
         dispatch_get_main_queue(),
         ^{
             DumpAllWindows();
 
             dispatch_after(
-                dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC),
+                dispatch_time(
+                    DISPATCH_TIME_NOW,
+                    5 * NSEC_PER_SEC
+                ),
                 dispatch_get_main_queue(),
                 ^{
                     DumpAllWindows();
