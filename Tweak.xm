@@ -58,9 +58,17 @@ static void SBLDumpStatusWindows(void) {
             [report appendFormat:@"\n===== StatusBarLayout DEBUG %@ =====\n",
                                   [NSDate date]];
 
-            NSArray *windows = [UIApplication sharedApplication].windows;
-            [report appendFormat:@"UIApplication windows: %lu\n",
-                                  (unsigned long)windows.count];
+            NSMutableArray *windows = [NSMutableArray array];
+
+            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if ([scene isKindOfClass:[UIWindowScene class]]) {
+                    UIWindowScene *windowScene = (UIWindowScene *)scene;
+                    [windows addObjectsFromArray:windowScene.windows];
+                }
+            }
+
+            [report appendFormat:@"UIWindowScene windows: %lu\n",
+                      (unsigned long)windows.count];
 
             BOOL found = NO;
 
