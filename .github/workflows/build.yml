@@ -24,6 +24,15 @@ jobs:
       - name: Build Rootless Debian package
         run: |
           export THEOS="$HOME/theos"
+
+          echo "=== Available iPhoneOS SDKs ==="
+          find "$THEOS/sdks" -maxdepth 1 -type d -name "iPhoneOS*.sdk" -print || true
+
+          echo "=== Makefile ==="
+          cat Makefile
+
+          echo "=== Build ==="
+          make clean
           make package FINALPACKAGE=1 ROOTLESS=1
 
       - name: Upload Debian package
